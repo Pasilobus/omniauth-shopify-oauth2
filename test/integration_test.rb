@@ -1,4 +1,4 @@
-require_relative 'test_helper'
+ require_relative 'test_helper'
 
 class IntegrationTest < Minitest::Test
   def setup
@@ -134,10 +134,7 @@ class IntegrationTest < Minitest::Test
 
     response = request.get("https://app.example.com/auth/shopify/callback?#{Rack::Utils.build_query(params)}",
                            input: body,
-                           "CONTENT_TYPE" => 'application/x-www-form-urlencoded',
-                           'rack.session' => {
-                              'shopify.omniauth_params' => { shop: 'snowdevil.myshopify.com' }
-                            })
+                           "CONTENT_TYPE" => 'application/x-www-form-urlencoded')
 
     assert_auth_failure(response, 'invalid_signature')
   end
@@ -305,19 +302,6 @@ class IntegrationTest < Minitest::Test
     assert_equal 200, response.status
   end
 
-  def test_callback_when_a_session_is_present
-    build_app(scope: 'scope', per_user_permissions: true)
-
-    access_token = SecureRandom.hex(16)
-    code = SecureRandom.hex(16)
-    session = SecureRandom.hex
-    expect_access_token_request(access_token, 'scope', { id: 1, email: 'bob@bobsen.com'}, session)
-
-    response = callback(sign_with_new_secret(shop: 'snowdevil.myshopify.com', code: code, state: opts["rack.session"]["omniauth.state"]))
-
-    assert_equal 200, response.status
-  end
-
   def test_callback_works_with_old_secret
     build_app scope: OmniAuth::Strategies::Shopify::DEFAULT_SCOPE
     access_token = SecureRandom.hex(16)
@@ -357,14 +341,9 @@ class IntegrationTest < Minitest::Test
     params
   end
 
-  def expect_access_token_request(access_token, scope, associated_user=nil, session=nil)
+  def expect_access_token_request(access_token, scope, associated_user=nil)
     FakeWeb.register_uri(:post, "https://snowdevil.myshopify.com/admin/oauth/access_token",
-                         body: JSON.dump(
-                           access_token: access_token,
-                           scope: scope,
-                           associated_user: associated_user,
-                           session: session,
-                         ),
+                         body: JSON.dump(access_token: access_token, scope: scope, associated_user: associated_user),
                          content_type: 'application/json')
   end
 
@@ -409,12 +388,11 @@ class IntegrationTest < Minitest::Test
   end
 
   def authorize(shop)
-    @opts['rack.session']['shopify.omniauth_params'] = { shop: shop }
+    @opts[:params] = { shop: shop }
     request.get('https://app.example.com/auth/shopify', opts)
   end
 
   def callback(params)
-    @opts['rack.session']['shopify.omniauth_params'] = { shop: shop }
     request.get("https://app.example.com/auth/shopify/callback?#{Rack::Utils.build_query(params)}", opts)
   end
 
